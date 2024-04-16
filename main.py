@@ -7,13 +7,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 access_token = os.getenv('VK_TOKEN')
-yd_token = os.getenv('YD_TOKEN')
 
 
 class VK:
     def __init__(self, token, version='5.131'):
         """
         Инициализация объекта класса VK для использования API
+
         :param token: токен VK API
         :param version: версия VK API
         """
@@ -26,6 +26,7 @@ class VK:
     def users_info(self, users_id):
         """
         Метод для работы с данными пользователя VK
+
         :param users_id: ID пользователя VK
         :return: json файл с информацией о пользователе
         """
@@ -37,6 +38,7 @@ class VK:
     def photos_profile_info(self, owner_id, album_id='profile'):
         """
        Метод для работы с данными фотографий с профиля пользователя VK
+
        :param owner_id: ID пользователя VK
        :param album_id: Название альбома для полученния данных:
                         'wall' - фотографии со стены
@@ -94,6 +96,7 @@ def get_vk_photos(user_id, album_photos):
 def check_name(name, photos_list):
     """
     Проверка на наличие уже имеющегося имени и переименование, если имеется
+
     :param name: Имя для проверки
     :param photos_list: Список имеющихся фотографий
     :return:
@@ -108,6 +111,7 @@ def check_name(name, photos_list):
 def save_profile_photos(user_id, photos_list):
     """
     Сохранений фотографий из VK на компьютер
+
     :param user_id: ID пользователя ВК
     :param photos_list: Список фотографий для сохранения
     :return:
@@ -121,9 +125,10 @@ def save_profile_photos(user_id, photos_list):
             file.write(response.content)
 
 
-def yd_create_folder(user_id):
+def yd_create_folder(user_id, yd_token):
     """
     Создание папки на Яндекс.Диске
+
     :param user_id: ID пользователя ВК
     """
     url_create_folder = 'https://cloud-api.yandex.net/v1/disk/resources'
@@ -135,6 +140,7 @@ def yd_create_folder(user_id):
 def check_count(count, photos_list):
     """
     Проверка корректности количества
+
     :param count:
     :param photos_list:
     :return:
@@ -150,14 +156,15 @@ def check_count(count, photos_list):
         return count
 
 
-def load_photos_yd(user_id, photos_list, count):
+def load_photos_yd(user_id, yd_token, photos_list, count):
     """
     Загрузка всех фотографий из списка на Яндекс.Диск
+
     :param user_id: ID пользователя ВК
     :param photos_list: Список фотографий для загрузки
     :param count: Количество загружаемых фотографий
     """
-    yd_create_folder(user_id)
+    yd_create_folder(user_id, yd_token)
     url_upload_img = 'https://cloud-api.yandex.net/v1/disk/resources/upload'
     headers = {'Authorization': yd_token}
     uploaded_list = []
@@ -189,6 +196,7 @@ def load_photos_yd(user_id, photos_list, count):
 def writing_json(user_id, photos_list):
     """
     Запись результата в JSON файл
+
     :param user_id: ID пользователя ВК
     :param photos_list: Список загруженных фотографий
     """
@@ -200,10 +208,11 @@ def writing_json(user_id, photos_list):
         f"Информация о загруженных фотографиях добавлена в json файл")
 
 
-def backup_photos(user_id, count=5, album_id='profile'):
+def backup_photos(user_id, yd_token, count=5, album_id='profile'):
     """
     Получение информации о фотографиях с ВК по ID и названию альбома.
     Загрузка их на Яндекс.Диск
+
     :param user_id: ID пользователя ВК
     :param count: Количество фотографий для загрузки
     :param album_id: Альбом, откуда брать фотографии
@@ -215,9 +224,11 @@ def backup_photos(user_id, count=5, album_id='profile'):
         photos = get_vk_photos(user_id, album_photos=all_profile_photos)
     except Exception:
         print('Некорректный ввод данных')
-
     try:
-        load_photos_yd(user_id=user_id, photos_list=photos, count=count)
+        load_photos_yd(user_id=user_id,
+                       yd_token=yd_token,
+                       photos_list=photos,
+                       count=count)
     except Exception:
         print('Ошибка загрузки фото на сервер')
     print('-' * 100)
@@ -225,6 +236,8 @@ def backup_photos(user_id, count=5, album_id='profile'):
 
 def main():
     user_id = input('Введите ID пользователя VK в числовом формат: ')
+    yd_token = input("Введите токен c Полигона Яндекс.Диска.\n"
+                     "Если токен загружен в .env файл, то нажмите ENTER.\n")
     count = input(
         "Введите количество загружаемых фотографий на Яндекс.Диск.\n"
         "Введите 'all', если хотите загрузить все.\n"
@@ -233,11 +246,13 @@ def main():
                      "  'wall' - фотографии со стены\n"
                      "  'profile' - фотографии с профиля\n"
                      "По умолчанию альбом = 'profile'. Нажмите ENTER.\n")
+    if yd_token == '':
+        yd_token = os.getenv('YD_TOKEN')
     if count == '':
         count = 5
     if album_id == '':
         album_id = 'profile'
-    backup_photos(user_id, count=count, album_id=album_id)
+    backup_photos(user_id, yd_token, count=count, album_id=album_id)
 
 
 if __name__ == '__main__':
