@@ -3,6 +3,7 @@ import json
 
 import requests
 from dotenv import load_dotenv
+from pprint import pprint
 
 load_dotenv()
 
@@ -31,7 +32,8 @@ class VK:
         :return: json файл с информацией о пользователе
         """
         url = 'https://api.vk.com/method/users.get'
-        params = {'user_ids': users_id}
+        params = {'user_ids': users_id,
+                  'fields': 'deactivated'}
         response = requests.get(url, params={**self.params, **params})
         return response.json()
 
@@ -134,7 +136,7 @@ def yd_create_folder(user_id, yd_token):
     url_create_folder = 'https://cloud-api.yandex.net/v1/disk/resources'
     params = {'path': user_id}
     headers = {'Authorization': yd_token}
-    requests.put(url_create_folder, params=params, headers=headers)
+    return requests.put(url_create_folder, params=params, headers=headers)
 
 
 def check_count(count, photos_list):
@@ -164,33 +166,51 @@ def load_photos_yd(user_id, yd_token, photos_list, count):
     :param photos_list: Список фотографий для загрузки
     :param count: Количество загружаемых фотографий
     """
-    yd_create_folder(user_id, yd_token)
-    url_upload_img = 'https://cloud-api.yandex.net/v1/disk/resources/upload'
-    headers = {'Authorization': yd_token}
-    uploaded_list = []
-    uploaded_files = 0  # количество загруженных фотографий
-    count_files = check_count(count, photos_list)
-    print(f"Идет процесс загрузки фотографий на Яндекс.Диск...")
-    for i in range(0, count_files):
-        params = {
-            'path': f'{user_id}/{photos_list[i]['file_name']}',
-            'url': f'{photos_list[i]['url']}'
-        }
-        # информация по фотографии для записи в json файл
-        photo_info = {
-            "file_name": photos_list[i]['file_name'],
-            "size": photos_list[i]['type'],
-        }
-        try:
-            requests.post(url_upload_img, params=params, headers=headers)
-            uploaded_files += 1
-            uploaded_list.append(photo_info)  # список для записи в json
-            print(f"Загружено {uploaded_files} из {count_files} файлов")
-        except Exception:
-            print(f"Не удалось загрузить файл {photos_list[i]['file_name']}")
-    print(
-        f"Загружено {uploaded_files} из {count_files} фотографий пользователя.")
-    writing_json(user_id, uploaded_list)
+    try:
+        response = yd_create_folder(user_id, yd_token)
+        if response.status_code == 201 or response.status_code == 409:
+            print('Папка на Яндекс.Диске создана.')
+
+            url_upload_img = 'https://cloud-api.yandex.net/v1/disk/resources/upload'
+            headers = {'Authorization': yd_token}
+            uploaded_list = []
+            uploaded_files = 0  # количество загруженных фотографий
+            count_files = check_count(count, photos_list)
+            print(f"Идет процесс загрузки фотографий на Яндекс.Диск...")
+            for i in range(0, count_files):
+                params = {
+                    'path': f"{user_id}/{photos_list[i]['file_name']}",
+                    'url': f"{photos_list[i]['url']}"
+                }
+                print(f"Загружается {photos_list[i]['file_name']} в папку {user_id}\n"
+                       f"URL фотографии: {photos_list[i]['url']}")
+
+                # информация по фотографии для записи в json файл
+                photo_info = {
+                    "file_name": photos_list[i]['file_name'],
+                    "size": photos_list[i]['type'],
+                }
+                try:
+                    response = requests.post(url_upload_img, params=params,
+                                             headers=headers)
+                    print(f"Статус загрузки фотографии: {response.status_code}")
+                    if response.status_code == 202:
+                        uploaded_files += 1
+                        uploaded_list.append(photo_info)  # список для записи в json
+                        print(f"Загружено {uploaded_files} из {count_files} файлов")
+                        print("-" * 100)
+                    else:
+                        raise Exception
+                except Exception:
+                    print(
+                        f"Не удалось загрузить файл {photos_list[i]['file_name']}")
+            print(
+                f"Загружено {uploaded_files} из {count_files} фотографий пользователя.")
+            writing_json(user_id, uploaded_list)
+        else:
+            raise Exception
+    except Exception:
+        print('Ошибка процесса загрузки на Яндекс.Диск')
 
 
 def writing_json(user_id, photos_list):
@@ -220,18 +240,22 @@ def backup_photos(user_id, yd_token, count=5, album_id='profile'):
     vk = VK(access_token)
     try:
         # Попытка получить информацию о фотографиях по введенным данным
-        all_profile_photos = vk.photos_profile_info(user_id, album_id)
-        photos = get_vk_photos(user_id, album_photos=all_profile_photos)
+        if (vk.users_info(user_id)['response'][0]['first_name'].lower()) not in ['deleted', 'banned']:
+            all_profile_photos = vk.photos_profile_info(user_id, album_id)
+            photos = get_vk_photos(user_id, album_photos=all_profile_photos)
+            try:
+                load_photos_yd(user_id=user_id,
+                               yd_token=yd_token,
+                               photos_list=photos,
+                               count=count)
+            except Exception:
+                print('Ошибка загрузки фото на сервер')
+            print('-' * 100)
+        else:
+            raise Exception
     except Exception:
-        print('Некорректный ввод данных')
-    try:
-        load_photos_yd(user_id=user_id,
-                       yd_token=yd_token,
-                       photos_list=photos,
-                       count=count)
-    except Exception:
-        print('Ошибка загрузки фото на сервер')
-    print('-' * 100)
+        print('Не удалось получить доступа к аккаунту ВК или он был удален.')
+
 
 
 def main():
@@ -258,3 +282,4 @@ def main():
 if __name__ == '__main__':
     # backup_photos(user_id=1, count='all', album_id='profile')
     main()
+
