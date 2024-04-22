@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 DEFAULT_COUNT = 5
-DEFAULT_ALBUM_ID = 'profile'
+DEFAULT_ALBUM_ID = "profile"
 
 
 class VK:
@@ -34,7 +34,14 @@ class VK:
         :param album_id: Id альбома.
         :return: None.
         """
-        self.album_id = album_id
+        self.album_id = check_album_id(album_id)
+
+    def get_album_id(self):
+        """
+        Метод для получения ID альбома.
+        :return: Возвращает ID альбома.
+        """
+        return self.album_id
 
     def set_count_photo(self, count_photo):
         """
@@ -42,7 +49,14 @@ class VK:
         :param count_photo: Количество фотографий для загрузки.
         :return: None.
         """
-        self.count_photo = count_photo
+        self.count_photo = check_count(count_photo)
+
+    def get_count_photo(self):
+        """
+        Метод для получения количества фотографий для загрузки.
+        :return: Количество фотографий для загрузки.
+        """
+        return self.count_photo
 
     def get_users_info(self):
         """
@@ -57,7 +71,7 @@ class VK:
                 raise ValueError
             return response.json()
         except ValueError:
-            print("Ошибка токена VK API TOKEN.")
+            print("Ошибка токена API VK.")
             exit()
 
     def get_albums_info(self):
@@ -131,8 +145,29 @@ class VK:
                 'file_name': check_name(photos['likes']['count'], photos_list),
             }
             photos_list.append(data_photo)
-        print(
-            f"Список фотографий максимального размера сформирован ({len(photos_list)} фото).")
+        print(f"Список фотографий максимального размера сформирован "
+              f"({len(photos_list)} фото).")
+        return photos_list
+
+    def get_photos_list(self):
+        """
+        Получение списка фотографий.
+        :return: Список json данных по каждой фотографии.
+        """
+        # проверка на корректность ввода токена VK
+        self.get_users_info()
+        # вывод информации об альбомах, если ID пользователя корректен
+        available_albums(self.get_albums_info())
+        # получение ID альбома VK и количества фотографий для загрузки
+        album_id = input(
+            "Введите ID альбома VK (по умолчанию - 'profile', нажмите ENTER): ")
+        self.set_album_id(album_id)
+        count_photo = input("Количество фотографий для загрузки "
+                            "(по умолчанию - 5, нажмите ENTER): ")
+        self.set_count_photo(count_photo)
+        # получение списка фотографий максимального размера,
+        # если ID альбома и количество для загрузки корректны
+        photos_list = self.get_max_photos(self.get_photos_info())
         return photos_list
 
 
@@ -146,8 +181,8 @@ def available_albums(response):
     albums_list = []
     for album in response['response']['items']:
         album_date = {'id': check_album_id(album['id']),
+                      'size': album['size'],
                       'title': album['title'],
-                      'size': album['size']
                       }
         albums_list.append(album_date)
     df = pd.DataFrame(albums_list)
@@ -160,16 +195,20 @@ def check_album_id(album_id):
     :param album_id: Старый ID альбома.
     :return: Новый ID альбома.
     """
-    # если пользователь не ввел никаких данных
-    if not album_id:
-        return DEFAULT_ALBUM_ID
-    # ID альбома '-6' - фотографии профиля
-    if album_id == -6:
-        return 'profile'
-    # ID альбома '-7' - фотографии со стены
-    if album_id == -7:
-        return 'wall'
-    return album_id
+    try:
+        # если пользователь не ввел никаких данных
+        if not album_id:
+            return DEFAULT_ALBUM_ID
+        # ID альбома '-6' - фотографии профиля
+        if album_id == -6:
+            return 'profile'
+        # ID альбома '-7' - фотографии со стены
+        if album_id == -7:
+            return 'wall'
+        return album_id
+    except ValueError:
+        print("Ошибка получения ID альбома.")
+        exit()
 
 
 def check_count(count):
@@ -205,62 +244,8 @@ def check_name(name, photos_list):
     return f"{name}.jpg"
 
 
-def download_photos(user_id, album_id, photos_list):
-    """
-    Сохранений фотографий из VK на компьютер.
-    :param user_id: ID пользователя VK.
-    :param album_id: ID альбома VK.
-    :param photos_list: Список фотографий для сохранения.
-    :return: None.
-    """
-    # создает папку с именем == ID пользователя, если не создана
-    count_photo = 1  # счетчик всех фотографий
-    downloaded_photos = 0  # счетчик загруженных фотографий
-    print("Начинается загрузка фотографий...")
-    # проверка на наличие папки
-    if not os.path.isdir(f'{user_id}/{album_id}/'):
-        print(f"Папка по пути '{user_id}/{album_id}/' создана.")
-        os.makedirs(f'{user_id}/{album_id}/')
-    for photo in photos_list:
-        response = requests.get(photo['url'])
-        file_path = f"{user_id}/{album_id}/{photo['file_name']}"
-        # проверка на дублирование фотографий
-        if not os.path.exists(file_path):
-            with open(file_path, 'wb') as file:
-                file.write(response.content)
-                downloaded_photos += 1
-                print(
-                    f"Фотография №{count_photo} - {photo['file_name']} загружена.")
-        else:
-            print(
-                f"Фотография №{count_photo} - {photo['file_name']} уже существует.")
-        count_photo += 1
-    print(f"Загружено {downloaded_photos} фотографий из {len(photos_list)}.")
-
-
 def main():
-    # получение VK TOKEN и ID пользователя
-    vk_token = input(
-        'Введите токен VK API (если токен внесен в файл .env, нажмите ENTER): ')
-    user_id = input(
-        'Введите ID пользователя VK в числовом формате (например, 1234515): ')
-    vk = VK(vk_token, user_id)
-    # проверка на корректность ввода VK TOKEN
-    vk.get_users_info()
-    # вывод информации об альбомах, если ID пользователя корректен
-    available_albums(vk.get_albums_info())
-    # получение ID альбома VK и количества фотографий для загрузки
-    album_id = input(
-        "Введите ID альбома VK (по умолчанию - 'profile', нажмите ENTER): ")
-    vk.set_album_id(check_album_id(album_id))
-    count_photo = input(
-        "Количество фотографий для загрузки (по умолчанию - 5, нажмите ENTER): ")
-    vk.set_count_photo(check_count(count_photo))
-    # получение списка фотографий максимального размера,
-    # если ID альбома и количество для загрузки корректны
-    photos_list = vk.get_max_photos(vk.get_photos_info())
-    # скачивание на пк фотографий с VK
-    download_photos(user_id, album_id, photos_list)
+    pass
 
 
 if __name__ == '__main__':
