@@ -1,10 +1,6 @@
-import os
-
 import requests
-from dotenv import load_dotenv
 from tqdm import tqdm
 
-load_dotenv()
 
 
 class YandexDisk:
@@ -16,8 +12,6 @@ class YandexDisk:
         :return: None.
         """
         self.token = token
-        if not self.token:
-            self.token = os.getenv('YD_TOKEN')
         self.headers = {'Authorization': self.token}
 
     def get_user_info(self):

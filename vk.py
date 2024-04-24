@@ -1,11 +1,6 @@
-import json
-import os
-
 import requests
 import pandas as pd
-from dotenv import load_dotenv
 
-load_dotenv()
 DEFAULT_COUNT = 5
 DEFAULT_ALBUM_ID = "profile"
 
@@ -20,8 +15,6 @@ class VK:
         :return: None.
         """
         self.token = token
-        if not self.token:
-            self.token = os.getenv('VK_TOKEN')
         self.version = version
         self.user_id = user_id
         self.album_id = None
@@ -140,9 +133,12 @@ class VK:
             # Информация каждой отдельной максимальной фотографии
             data_photo = {
                 'url': url_max_photo,
-                'date': photos['date'],
+                'photo_id': photos['id'],
                 'type': max_size_type,
-                'file_name': check_name(photos['likes']['count'], photos_list),
+                # 'file_name': f"{photos['likes']['count']}-{photos['id']}.jpg"
+                'file_name': check_name(photos['likes']['count'],
+                                        photos['id'],
+                                        photos_list)
             }
             photos_list.append(data_photo)
         print(f"Список фотографий максимального размера сформирован "
@@ -230,7 +226,7 @@ def check_count(count):
         exit()
 
 
-def check_name(name, photos_list):
+def check_name(name, photo_id,photos_list):
     """
     Установка имени фотографии, а также проверка на дублирование.
     :param name: Имя для проверки.
@@ -240,7 +236,7 @@ def check_name(name, photos_list):
     for photo_name in photos_list:
         file_name = photo_name['file_name'].split('.')[0]
         if str(name) == file_name:
-            return f"{file_name}-{photo_name['date']}.jpg"
+            return f"{name}-{photo_id}.jpg"
     return f"{name}.jpg"
 
 

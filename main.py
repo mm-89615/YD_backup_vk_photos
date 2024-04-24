@@ -2,9 +2,11 @@ import os
 import json
 
 import requests
-
+from dotenv import load_dotenv
 from vk import VK
 from yandex_disk import YandexDisk
+
+load_dotenv()
 
 
 def download_photos(user_id, album_id, photos_list):
@@ -61,6 +63,8 @@ def main():
     # получение токена API VK и ID пользователя
     vk_token = input(
         "Введите токен VK API (если токен внесен в файл .env, нажмите ENTER): ")
+    if not vk_token:
+        vk_token = os.getenv('VK_TOKEN')
     user_id = input(
         "Введите ID пользователя VK в числовом формате (например, 1234515): ")
     vk = VK(vk_token, user_id)
@@ -78,6 +82,8 @@ def main():
         # получение токена API Яндекс.Диска
         yd_token = input("Введите токен API Яндекс.Диска "
                          "(если токен внесен в файл .env, нажмите ENTER): ")
+        if not yd_token:
+            yd_token = os.getenv('YD_TOKEN')
         yd = YandexDisk(yd_token)
         yd.load_photos(user_id, vk.get_album_id(), photos_list)
         writing_json(user_id, vk.get_album_id(), photos_list)
